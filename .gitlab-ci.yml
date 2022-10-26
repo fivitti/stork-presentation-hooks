@@ -1,0 +1,16 @@
+image: "python:3.8"
+
+pages:
+  stage: deploy
+  script:
+    - pip install .
+    - mdslides example/simple.md
+    - mdslides example/presentation.md --include example/media
+    - mv presentation public
+  artifacts:
+    paths:
+      - public
+  only:
+    - master
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
