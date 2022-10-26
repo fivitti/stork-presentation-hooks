@@ -31,7 +31,6 @@ jobs:
         pip install .
     - name: Generate HTML
       run: |
-        mdslides example/simple.md
         mdslides example/presentation.md --include example/media
     - name: Deploy pages
       if: success()
