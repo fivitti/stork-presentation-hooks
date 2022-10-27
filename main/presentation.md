@@ -6,7 +6,7 @@
 
 Sławek Figiel | ISC | November 3, 2022
 
-# Stork testing
+# Stork hooks
 
 ![Stork logo](media/stork-logo.png) <!-- .element: style="height:10vh; max-width:80vw; image-rendering: crisp-edges;" -->
 
@@ -14,218 +14,128 @@ Sławek Figiel | ISC | November 3, 2022
 
 ## Agenda
 
-1. Unit tests
-2. Static tests
-3. System tests
-   1. Architecture
-   2. Simple test
-   3. Configuration management
-   4. Features
-   5. Missing parts
-4. Storybook as test framework
-5. Next steps
+1. Kea solution
+2. Key goals
+3. Hook interface
+4. Hook framework
+5. Pros and cons
+6. To implement
+7. Repository organization
 
 [comment]: # (!!!)
 
-## Unit tests - Backend
+## Kea solution - hook interface
 
-- Written in Golang
-- Require Postgres (standalone or in Docker)
-- Server / Agent / Database / REST API
-- Files with `_test.go` suffix
-- Executed by `rake unittest:backend`
+![Kea interface](media/hook-interface-kea.png) <!-- .element: style="height:50vh; max-width:80vw; image-rendering: crisp-edges;" -->
+
+[comment]: # (|||)
+
+### Kea solution - pros and cons
+
+Advantages:
+
+- Minimal effort to implement new hook
+- Optional callouts
+- Version checking
+
+Disadvantages:
+
+- Checking the callout argument types only in runtime
+- Missing application checking
 
 [comment]: # (!!!)
 
-### Example
+### Hook interface
 
-```go [1|2|3-5|7-8|10-12]
-// Collector construction fails if interval is missing.
-func TestCollectorWithMissingInterval(t *testing.T) {
-	// Arrange
-	db, _, teardown := dbtest.SetupDatabaseTestCase(t)
-	defer teardown()
+![Stork interface](media/hook-interface-stork.png) <!-- .element: style="height:50vh; max-width:80vw; image-rendering: crisp-edges;" -->
 
-	// Act
-	collector, err := NewCollector(db)
+[comment]: # (|||)
 
-	// Assert
-	require.Nil(t, collector)
-	require.Error(t, err)
+### Hook interface - implementation
+
+plugin.go - common for all hooks:
+
+```go [1-3|5-7|9-12]
+func Load() (hooks.Callout, error) {
+	return &callout{}, nil
+}
+
+func Version() (string, string) {
+	return hooks.HookProgramAgent, hooks.StorkVersion
+}
+
+var (
+	_ hooks.HookLoadFunction    = Load
+	_ hooks.HookVersionFunction = Version
+)
+
+```
+
+[comment]: # (|||)
+
+### Hook interface - implementation
+
+callout.go - specific for each hook
+
+```go [1|2-4|6|7-10]
+type callout struct{}
+func (c *callout) Close() error {
+	return nil
+}
+
+var _ foocallout.FooCallout = (*callout)(nil)
+func (c *callout) Foo() int {
+  return 42
+}
+```
+
+foocallout.go - defined in core
+
+```go
+type FooCallout interface {
+  Foo() int
 }
 ```
 
 [comment]: # (!!!)
 
-## Unit tests - Frontend
+## Hook framework
 
-- Written in TypeScript (Karma & Jasmine)
-- Require Chrome
-- Frontend logic / UI
-- Files with `.spec.ts` suffix
-- Executed by `rake unittest:ui`
+![Class diagram](media/class-diagram.png) <!-- .element: style="height:50vh; width:80vw; image-rendering: crisp-edges; object-fit: contain;" -->
 
 [comment]: # (!!!)
 
-### Example
+## Pros and cons
 
-```ts [1|3|4-7|9|10|12-13]
-// ... some configurations above ...
+Advantages:
 
-it('should not open a tab on error', () => {
-    spyOn(dhcpApi, 'getHost').and.returnValue(
-        throwError({ status: 404 })
-    )
-    spyOn(messageService, 'add')
+- Static (compilation-time) type checking
+- Isolating hook calling and the core codebase
+- Callouts are pure functions
 
-    paramMapSubject.next(convertToParamMap({ id: 1 }))
-    fixture.detectChanges()
+Disadvantages:
 
-    expect(component.tabs.length).toBe(1)
-    expect(messageService.add).toHaveBeenCalled()
-})
-```
+- Hooks are static linking. Dependency of callout signature types must be built-in into a hook.
+- The number of dependencies (and output size) may quickly grow
 
 [comment]: # (!!!)
 
-## Static tests
+## To implement
 
-Linting
-
-- `rake lint:backend`
-- `rake lint:ui`
-- `rake lint:git` (only CI)
-
-Vulnerability checkers
-
-- `npm audit`
-- Tool for Go coming soon...
-- Github Alerts
+- Hooks configuration (CLI, DB)
+- Exchange data between hook
+- REST API & UI for hooks - monitoring and management
 
 [comment]: # (!!!)
 
-## System tests
+## Repository organization
 
-![Stork ecosystem](media/ecosystem.png) <!-- .element: style="height:50vh; max-width:80vw; image-rendering: crisp-edges;" -->
+- Single repository for single hook
+- Compound repository for ISC hooks
+  - Git submodules
+  - Common CI (build, linting, testing, packaging)
 
-[comment]: # (!!!)
-
-### Architecture
-
-![System test layers](media/layers.svg) <!-- .element: style="height:50vh; max-width:80vw; image-rendering: crisp-edges;" -->
-
-[comment]: # (!!!)
-
-### Overview
-
-- Written in Python
-- Require Docker
-- Real interactions between Stork and Kea/BIND9
-- Files in the `tests/system` directory
-- Executed by `rake systemtest`
-
-[comment]: # (!!!)
-
-### Example (code)
-
-```python [2-3|1|4|5-7|9|11-13]
-@kea_parametrize("agent-kea")
-def test_search_leases(kea_service: Kea,
-                       server_service: Server):
-    """Search by IPv4 address."""
-    server_service.log_in_as_admin()
-    server_service.authorize_all_machines()
-    server_service.wait_for_next_machine_states()
-
-    data = server_service.list_leases('192.0.2.1')
-
-    assert data['total'] == 1
-    assert data['items'][0]['ipAddress'] == '192.0.2.1'
-    assert data['conflicts'] is None
-```
-
-[comment]: # (!!!)
-
-### Example (configuration)
-
-```yaml [1|2|3-6|7-9|10-11]
-agent-kea-tls-optional-client-cert-no-verify:
-  extends: agent-kea
-  volumes:
-    - type: volume
-      source: $PWD/tests/system/config/kea-tls/optional-client-cert.json
-      target: /etc/kea/kea-ctrl-agent-tls.json
-    - $PWD/tests/system/config/certs/cert.pem:/root/certs/cert.pem
-    - $PWD/tests/system/config/certs/key.pem:/root/certs/key.pem
-    - $PWD/tests/system/config/certs/CA:/root/certs/CA
-  environment:
-    STORK_AGENT_SKIP_TLS_CERT_VERIFICATION: "true"
-
-```
-
-[comment]: # (!!!)
-
-### Features
-
-- Supporting Stork Server/Stork Agent/Kea Control Agent/Kea DHCPv4 and v6 Daemons/BIND 9 Daemon/Databases
-- Managing services with Python API
-- Isolating test cases
-- Storing configurations in plain text
-- Generating traffic using Perfdhcp
-- Collecting log files on failure
-
-[comment]: # (!!!)
-
-### Missing parts
-
-- Only one instance of a specific service may be used in a single test case (HA pair testing)
-- Waiting for loading Kea configuration by DHCP Daemon (Kea DHCPv6 Daemon is unstable)
-- PyTest output in post-test log files (sic!)
-- OpenAPI validates the API contract too strictly
-- Some API endpoints in the Server wrapper
-- Running system test on different operating systems
-- Generating DNS traffic for BIND9
-- Diagnostic data for some failure types
-- Support for modern `docker compose` command
-
-[comment]: # (!!!)
-
-## Storybook
-
-- Written in TypeScript
-- Require Chrome
-- Tool to run the UI components in isolation
-- Files with the `.stories.ts` suffix
-- Executed by `rake storybook`
-  
-- Exploratory testing
-- Visual/regression testing 
-- Interaction testing
-- Accessibility testing
-- Snapshot testing
-
-[comment]: # (!!!)
-
-### Example
-
-From official Storybook website:
-
-<video nocontrols autoplay muted loop width="560" height="315">
-  <source src="media/storybook-hero-video-optimized-lg.mp4" type="video/mp4">
-</video>
-
-[comment]: # (!!!)
-
-## Next steps
-
-- Extend the system tests API
-- E2E UI tests
-- Performance / load testing
-  - Large WWW traffic
-  - Large number of Kea/BIND9 daemons
-  - Large Kea configurations
-- Fuzzing testing (REST API edge cases)
-- Improve performance of system tests
+![Hook repositories](media/hook-repos.png) <!-- .element: style="height:25vh; width:80vw; image-rendering: crisp-edges; object-fit: contain;" -->
 
 [comment]: # (!!!)
 
