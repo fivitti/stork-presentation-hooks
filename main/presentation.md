@@ -15,20 +15,19 @@ Sławek Figiel | ISC | November 3, 2022
 ## Agenda
 
 1. Kea solution
-2. Key goals
-3. Hook interface
-4. Hook framework
-5. Pros and cons
-6. To implement
-7. Repository organization
+2. Hook interface
+3. Hook framework
+4. Pros and cons
+5. To implement
+6. Repository organization
 
 [comment]: # (!!!)
 
-## Kea solution - hook interface
+## Kea hook interface
 
 ![Kea interface](media/hook-interface-kea.png) <!-- .element: style="height:50vh; max-width:80vw; image-rendering: crisp-edges;" -->
 
-[comment]: # (|||)
+[comment]: # (||| data-background-color="#05c46b")
 
 ### Kea solution - pros and cons
 
@@ -43,15 +42,13 @@ Disadvantages:
 - Checking the callout argument types only in runtime
 - Missing application checking
 
-[comment]: # (!!!)
+[comment]: # (!!! data-background-color="#05c46b")
 
-### Hook interface
+## Stork hook interface
 
 ![Stork interface](media/hook-interface-stork.png) <!-- .element: style="height:50vh; max-width:80vw; image-rendering: crisp-edges;" -->
 
-[comment]: # (|||)
-
-### Hook interface - implementation
+[comment]: # (||| data-background-color="#0fbcf9")
 
 plugin.go - common for all hooks:
 
@@ -71,9 +68,7 @@ var (
 
 ```
 
-[comment]: # (|||)
-
-### Hook interface - implementation
+[comment]: # (||| data-background-color="#0fbcf9")
 
 callout.go - specific for each hook
 
@@ -97,7 +92,7 @@ type FooCallout interface {
 }
 ```
 
-[comment]: # (!!!)
+[comment]: # (!!! data-background-color="#0fbcf9")
 
 ## Hook framework
 
@@ -122,9 +117,35 @@ Disadvantages:
 
 ## To implement
 
-- Hooks configuration (CLI, DB)
-- Exchange data between hook
-- REST API & UI for hooks - monitoring and management
+#### 1. Hooks configuration
+
+- CLI flags defined by hooks
+  - Merged with standard CLI (including help)
+  - Separate prefix for each hook
+  - Support for environment variables
+- Settings database table
+  - Persistent storage
+  - Dedicated wrapper to avoid DB dependencies in hooks
+  - Challenge: Migrating schema
+
+[comment]: # (|||)
+
+#### 2. Exchange data between hooks
+
+- By `context.Context` (done)
+- By passing previous output as next input
+- By gRPC
+- Interrupting callout chain execution
+
+[comment]: # (|||)
+
+#### 3. Hook management
+
+- REST API endpoint
+- UI for hooks
+- Performance monitoring
+- Loading/unloading/reloading hooks
+- Reconfiguration hooks in runtime
 
 [comment]: # (!!!)
 
