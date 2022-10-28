@@ -1,0 +1,250 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+<title>Stork hooks</title>
+		<link rel="stylesheet" href="dist/reset.css">
+		<link rel="stylesheet" href="dist/reveal.css">
+<link rel="stylesheet" href="dist/theme/white.css" id="theme">
+		<!-- Theme used for syntax highlighted code -->
+<link rel="stylesheet" href="plugin/highlight/shades-of-purple.min.css" id="highlight-theme"></head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+<section data-markdown  ><textarea data-template>
+[comment]: # (Set the theme:)
+[comment]: # (The list of themes is at https://revealjs.com/themes/)
+[comment]: # (The list of code themes is at https://highlightjs.org/)
+
+Sławek Figiel | ISC | November 3, 2022
+
+# Stork hooks
+
+![Stork logo](media/stork-logo.png) <!-- .element: style="height:10vh; max-width:80vw; image-rendering: crisp-edges;" -->
+
+</textarea></section>
+<section data-markdown  ><textarea data-template>
+
+## Agenda
+
+1. Kea solution
+2. Hook interface
+3. Hook framework
+4. Pros and cons
+5. To implement
+6. Repository organization
+
+</textarea></section>
+<section>
+<section data-markdown  data-background-color="#05c46b"><textarea data-template>
+
+## Kea hook interface
+
+![Kea interface](media/hook-interface-kea.png) <!-- .element: style="height:50vh; max-width:80vw; image-rendering: crisp-edges;" -->
+
+</textarea></section>
+<section data-markdown  data-background-color="#05c46b"><textarea data-template>
+
+### Kea hook configuration
+
+```json
+{
+  "Dhcp4": {
+    "hooks-libraries": [{
+      "library":
+        "/usr/local/lib/kea/hooks/libdhcp_legal_log.so",
+      "parameters": {
+        "path": "/var/lib/kea/log",
+        "base-name": "kea-forensic4"
+      }
+    }]
+  }
+}
+```
+
+</textarea></section>
+<section data-markdown  data-background-color="#05c46b"><textarea data-template>
+
+### Kea solution - pros and cons
+
+Advantages:
+
+- Minimal effort to implement new hook
+- Optional callouts
+- Version checking
+
+Disadvantages:
+
+- Checking the callout argument types only in runtime
+- Missing application checking
+
+</textarea></section>
+</section>
+<section>
+<section data-markdown  data-background-color="#0fbcf9"><textarea data-template>
+
+## Stork hook interface
+
+![Stork interface](media/hook-interface-stork.png) <!-- .element: style="height:50vh; max-width:80vw; image-rendering: crisp-edges;" -->
+
+</textarea></section>
+<section data-markdown  data-background-color="#0fbcf9"><textarea data-template>
+
+plugin.go - common for all hooks:
+
+```go [1-3|5-7|9-12]
+func Load() (hooks.Callout, error) {
+	return &callout{}, nil
+}
+
+func Version() (string, string) {
+	return hooks.HookProgramAgent, hooks.StorkVersion
+}
+
+var (
+	_ hooks.HookLoadFunction    = Load
+	_ hooks.HookVersionFunction = Version
+)
+
+```
+
+</textarea></section>
+<section data-markdown  data-background-color="#0fbcf9"><textarea data-template>
+
+callout.go - specific for each hook
+
+```go [1|2-4|6|7-10]
+type callout struct{}
+func (c *callout) Close() error {
+	return nil
+}
+
+var _ foocallout.FooCallout = (*callout)(nil)
+func (c *callout) Foo() int {
+  return 42
+}
+```
+
+foocallout.go - defined in core
+
+```go
+type FooCallout interface {
+  Foo() int
+}
+```
+
+</textarea></section>
+</section>
+<section data-markdown  ><textarea data-template>
+
+## Hook framework
+
+![Class diagram](media/class-diagram.png) <!-- .element: style="height:50vh; width:80vw; image-rendering: crisp-edges; object-fit: contain;" -->
+
+</textarea></section>
+<section data-markdown  ><textarea data-template>
+
+## Hook loading
+
+- Copy-and-paste approach
+- All hooks from a given directory
+- Sort by filename
+- Stop on incompatible or out-of-data hook
+
+</textarea></section>
+<section data-markdown  ><textarea data-template>
+
+## Pros and cons
+
+Benefits:
+
+- Static (compilation-time) type checking
+- Isolating hook calling and the core codebase
+- Callouts are pure functions
+
+Threats:
+
+- Hooks are static linking. Dependency of callout signature types must be built-in into a hook.
+- The number of dependencies (and output size) may quickly grow
+
+</textarea></section>
+<section>
+<section data-markdown  ><textarea data-template>
+
+## To implement
+
+#### 1. Hooks configuration
+
+- CLI flags defined by hooks
+  - Merged with standard CLI (including help)
+  - Separate prefix for each hook
+  - Support for environment variables
+- Settings database table
+  - Persistent storage
+  - Dedicated wrapper to avoid DB dependencies in hooks
+  - Challenge: Migrating schema
+
+</textarea></section>
+<section data-markdown  ><textarea data-template>
+
+#### 2. Exchange data between hooks
+
+- By `context.Context` (done)
+- By passing previous output as next input
+- By gRPC
+- Interrupting callout chain execution
+
+</textarea></section>
+<section data-markdown  ><textarea data-template>
+
+#### 3. Hook management
+
+- REST API endpoint
+- UI for hooks
+- Performance monitoring
+- Loading/unloading/reloading hooks
+- Reconfiguration hooks in runtime
+
+</textarea></section>
+</section>
+<section data-markdown  ><textarea data-template>
+
+## Repository organization
+
+- Single repository for single hook
+- Compound repository for ISC hooks
+  - Git submodules
+  - Common CI (build, linting, testing, packaging)
+
+![Hook repositories](media/hook-repos.png) <!-- .element: style="height:25vh; width:80vw; image-rendering: crisp-edges; object-fit: contain;" -->
+
+</textarea></section>
+<section data-markdown  ><textarea data-template>
+
+# Q&A
+
+</textarea></section>
+			</div>
+		</div>
+
+		<script src="dist/reveal.js"></script>
+		<script src="plugin/notes/notes.js"></script>
+		<script src="plugin/markdown/markdown.js"></script>
+		<script src="plugin/highlight/highlight.js"></script>
+		<script src="plugin/math/math.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+Reveal.initialize({
+controls : false,
+markdown : {smartypants: true},
+				hash: true,
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes, RevealMath ]
+			});
+		</script>
+	</body>
+</html>
