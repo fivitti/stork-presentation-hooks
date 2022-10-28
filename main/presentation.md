@@ -102,13 +102,13 @@ type FooCallout interface {
 
 ## Pros and cons
 
-Advantages:
+Benefits:
 
 - Static (compilation-time) type checking
 - Isolating hook calling and the core codebase
 - Callouts are pure functions
 
-Disadvantages:
+Threats:
 
 - Hooks are static linking. Dependency of callout signature types must be built-in into a hook.
 - The number of dependencies (and output size) may quickly grow
