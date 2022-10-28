@@ -29,6 +29,25 @@ Sławek Figiel | ISC | November 3, 2022
 
 [comment]: # (||| data-background-color="#05c46b")
 
+### Kea hook configuration
+
+```json
+{
+  "Dhcp4": {
+    "hooks-libraries": [{
+      "library":
+        "/usr/local/lib/kea/hooks/libdhcp_legal_log.so",
+      "parameters": {
+        "path": "/var/lib/kea/log",
+        "base-name": "kea-forensic4"
+      }
+    }]
+  }
+}
+```
+
+[comment]: # (||| data-background-color="#05c46b")
+
 ### Kea solution - pros and cons
 
 Advantages:
@@ -97,6 +116,15 @@ type FooCallout interface {
 ## Hook framework
 
 ![Class diagram](media/class-diagram.png) <!-- .element: style="height:50vh; width:80vw; image-rendering: crisp-edges; object-fit: contain;" -->
+
+[comment]: # (!!!)
+
+## Hook loading
+
+- Copy-and-paste approach
+- All hooks from a given directory
+- Sort by filename
+- Stop on incompatible or out-of-data hook
 
 [comment]: # (!!!)
 
